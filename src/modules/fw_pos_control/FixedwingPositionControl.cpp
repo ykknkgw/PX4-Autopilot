@@ -2834,7 +2834,7 @@ FixedwingPositionControl::Run()
 		}
 
 
-		fw_lateral_control_setpoint_s sp = {.course_setpoint = NAN, .heading_setpoint = NAN, .lateral_acceleration_setpoint = NAN};
+		fw_lateral_control_setpoint_s sp = {empty_lateral_control_setpoint};
 		float roll_sp {NAN};
 
 		if (_fw_lateral_ctrl_sub.update(&sp)) {
