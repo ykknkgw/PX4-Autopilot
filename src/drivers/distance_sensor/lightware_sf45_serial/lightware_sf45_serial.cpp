@@ -656,48 +656,12 @@ void SF45LaserSerial::sf45_process_replies(float *distance_m)
 					_current_bin_dist = _obstacle_map_msg.max_distance + 1; // As per ObstacleDistance.msg definition
 				}
 
-				// if the sensor has its cycle delay configured for a low value like 5, it can happen that not every bin gets a measurement.
-				// in this case we assume the measurement to be valid for all bins between the previous and the current bin. win
-				uint8_t start;
-				uint8_t end;
+				hrt_abstime now = hrt_absolute_time();
+				_handle_missed_bins(current_bin, _previous_bin, _current_bin_dist, now);
 
-				if (abs(current_bin - _previous_bin) > BIN_COUNT /
-				    4) {	// wrap-around case is assumed to have happend when the distance between the bins is larger than 1/4 of all Bins
-					// TODO: differentiate direction of wrap-around, currently it overwrites a previous measurement.
-					start = math::max(_previous_bin, current_bin);
-					end = math::min(_previous_bin, current_bin);
-
-				} else if (_previous_bin < current_bin) {	// Scanning clockwise
-					start = _previous_bin + 1;
-					end = current_bin;
-
-				} else { 					// scanning counter-clockwise
-					start = current_bin;
-					end = _previous_bin - 1;
-				}
-
-				if (start <= end) {
-					for (uint8_t i = start; i <= end; i++) {_obstacle_map_msg.distances[i] = _current_bin_dist;}
-
-				} else { // wrap-around case
-					for (uint8_t i = start; i < BIN_COUNT; i++) {_obstacle_map_msg.distances[i] = _current_bin_dist;}
-
-					for (uint8_t i = 0; i <= end; i++) {_obstacle_map_msg.distances[i] = _current_bin_dist;}
-				}
-
-				_obstacle_map_msg.timestamp = hrt_absolute_time();
-				_obstacle_distance_pub.publish(_obstacle_map_msg);
+				_publish_obstacle_msg(now);
 
 				// reset the values for the next measurement
-				if (start <= end) {
-					for (uint8_t i = start; i <= end; i++) {_obstacle_map_msg.distances[i] = UINT16_MAX;}
-
-				} else { // wrap-around case
-					for (uint8_t i = start; i < BIN_COUNT; i++) {_obstacle_map_msg.distances[i] = UINT16_MAX;}
-
-					for (uint8_t i = 0; i <= end; i++) {_obstacle_map_msg.distances[i] = UINT16_MAX;}
-				}
-
 				_current_bin_dist = UINT16_MAX;
 				_previous_bin = current_bin;
 			}
@@ -710,7 +674,61 @@ void SF45LaserSerial::sf45_process_replies(float *distance_m)
 		break;
 	}
 }
+void SF45LaserSerial::_publish_obstacle_msg(hrt_abstime now)
+{
+	// This whole logic is here because the sensor has a faster loop time than collision prevention, and if we dont work with a timeout on sensor data
+	// we run into the problem of obstacle_distance messages being missed in collision prevention.
+	for (int i = 0; i < BIN_COUNT; i++) {
+		if (now - _data_timestamps[i] > SF45_MEAS_TIMEOUT) {
+			_obstacle_map_msg.distances[i] = UINT16_MAX;
+		}
+	}
 
+	_obstacle_map_msg.timestamp = now;
+	_obstacle_distance_pub.publish(_obstacle_map_msg);
+}
+
+void SF45LaserSerial::_handle_missed_bins(uint8_t current_bin, uint8_t previous_bin, uint16_t measurement,
+		hrt_abstime now)
+{
+	// if the sensor has its cycle delay configured for a low value like 5, it can happen that not every bin gets a measurement.
+	// in this case we assume the measurement to be valid for all bins between the previous and the current bin. win
+	uint8_t start;
+	uint8_t end;
+
+	if (abs(current_bin - previous_bin) > BIN_COUNT / 4) {
+		// wrap-around case is assumed to have happend when the distance between the bins is larger than 1/4 of all Bins
+		// THis is simplyfied as we are not considering the scaning direction
+		start = math::max(previous_bin, current_bin);
+		end = math::min(previous_bin, current_bin);
+
+	} else if (previous_bin < current_bin) {	// Scanning clockwise
+		start = previous_bin + 1;
+		end = current_bin;
+
+	} else { 					// scanning counter-clockwise
+		start = current_bin;
+		end = previous_bin - 1;
+	}
+
+	if (start <= end) {
+		for (uint8_t i = start; i <= end; i++) {
+			_obstacle_map_msg.distances[i] = measurement;
+			_data_timestamps[i] = now;
+		}
+
+	} else { // wrap-around case
+		for (uint8_t i = start; i < BIN_COUNT; i++) {
+			_obstacle_map_msg.distances[i] = measurement;
+			_data_timestamps[i] = now;
+		}
+
+		for (uint8_t i = 0; i <= end; i++) {
+			_obstacle_map_msg.distances[i] = measurement;
+			_data_timestamps[i] = now;
+		}
+	}
+}
 uint8_t SF45LaserSerial::sf45_convert_angle(const int16_t yaw)
 {
 	uint8_t mapped_sector = 0;

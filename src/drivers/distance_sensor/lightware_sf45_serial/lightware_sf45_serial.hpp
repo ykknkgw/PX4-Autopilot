@@ -71,6 +71,7 @@ enum SensorOrientation {	  // Direction the sensor faces from MAV_SENSOR_ORIENTA
 	ROTATION_UPWARD_FACING = 24,  // MAV_SENSOR_ROTATION_PITCH_90
 	ROTATION_DOWNWARD_FACING = 25 // MAV_SENSOR_ROTATION_PITCH_270
 };
+
 using namespace time_literals;
 class SF45LaserSerial : public px4::ScheduledWorkItem
 {
@@ -91,6 +92,7 @@ private:
 	obstacle_distance_s 			_obstacle_map_msg{};
 	uORB::Publication<obstacle_distance_s>	_obstacle_distance_pub{ORB_ID(obstacle_distance)};	/**< obstacle_distance publication */
 	static constexpr int BIN_COUNT = sizeof(obstacle_distance_s::distances) / sizeof(obstacle_distance_s::distances[0]);
+	static constexpr uint64_t SF45_MEAS_TIMEOUT{100_ms};
 
 	void				start();
 	void				stop();
@@ -99,6 +101,7 @@ private:
 	int				collect();
 	bool				_crc_valid{false};
 
+	void 				_handle_missed_bins(uint8_t current_bin, uint8_t previous_bin, uint16_t measurement, hrt_abstime now);
 	void 				_publish_obstacle_msg(hrt_abstime now);
 	uint64_t			_data_timestamps[BIN_COUNT];
 
