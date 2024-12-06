@@ -41,3 +41,14 @@
  * @value 1 Enabled
   */
 PARAM_DEFINE_INT32(SENS_EN_AGPSIM, 0);
+
+/**
+ * AGP failure mode
+ *
+ * @group Simulator
+ * @min 0
+ * @max 3
+ * @bit 0 Constant
+ * @bit 1 Drift
+ */
+PARAM_DEFINE_INT32(SIM_AGP_FAIL, 0);
