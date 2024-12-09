@@ -63,7 +63,7 @@ public:
 	bool isKinematicallyConsistent() const { return _state == KinematicState::CONSISTENT; }
 	bool isNotKinematicallyInconsistent() const { return _state != KinematicState::INCONSISTENT || _fixed_wing; }
 	void update(float z, float z_var, float vz, float vz_var, float dist_bottom, float dist_bottom_var,
-			  uint64_t time_us);
+		    uint64_t time_us);
 	void init(float var_z, float var_terrain, float z, float dist_bottom);
 	void stop()
 	{
@@ -96,6 +96,7 @@ public:
 		 const float dist_bottom, const float dist_bottom_var, uint64_t time_us);
 
 	uint8_t current_posD_reset_count{0};
+	float terrain_process_noise{0.0f};
 
 private:
 
@@ -116,6 +117,13 @@ private:
 	int _min_nr_of_samples{0};
 	bool _fixed_wing{false};
 	uint8_t _last_posD_reset_count{0};
+};
+
+namespace RangeFilter
+{
+static constexpr estimator::IdxDof z{0, 1};
+static constexpr estimator::IdxDof terrain{1, 1};
+static constexpr uint8_t size{2};
 };
 
 #endif // !EKF_RANGE_FINDER_CONSISTENCY_CHECK_HPP
